@@ -7,9 +7,7 @@ pub struct TokenDesc {
 
 macro_rules! desc {
     ($tag:expr) => {
-        TokenDesc {
-            tag: $tag,
-        }
+        TokenDesc { tag: $tag }
     };
 }
 
@@ -28,11 +26,11 @@ impl Token {
     }
 }
 
-use std::io::Read;
 use std::collections::HashMap;
+use std::io::Read;
 pub struct Lexer {
     peek: char,
-    buf: [u8;10],
+    buf: [u8; 10],
     buf_index: usize,
     reader: Box<dyn Read>,
     words: HashMap<String, Token>,
@@ -43,24 +41,20 @@ impl Lexer {
     pub fn new(reader: Box<dyn Read>) -> Self {
         let mut words = HashMap::new();
         macro_rules! reserve_word {
-            ($word:expr, $tag:expr) => {
-                {
-                    let lexeme = $word.to_string();
-                    let word = Token::word($tag, lexeme.clone());
-                    words.insert(lexeme, word) ;
-                }
-            };
+            ($word:expr, $tag:expr) => {{
+                let lexeme = $word.to_string();
+                let word = Token::word($tag, lexeme.clone());
+                words.insert(lexeme, word);
+            }};
         }
 
         reserve_word!("true", tag::TRUE);
         reserve_word!("false", tag::FALSE);
 
-        let  mut buf = [0;10];
-        let mut l = 
-
-        Self {
-            peek: ' ', 
-            buf: [0;10],
+        let _buf = [0; 10];
+        let mut l = Self {
+            peek: ' ',
+            buf: [0; 10],
             buf_index: 0,
             reader,
             words,
@@ -93,13 +87,12 @@ impl Lexer {
                 peek = self.next_char();
             }
             return Token::num(val);
-
         }
         panic!("at the disco");
     }
 
     fn next_char(&mut self) -> char {
-        if self.buf_index <  self.buf.len() {
+        if self.buf_index < self.buf.len() {
             self.peek = self.buf[self.buf_index] as char;
             self.buf_index += 1;
             println!("buf: {:?}", self.buf);
@@ -107,13 +100,13 @@ impl Lexer {
             return self.peek;
         } else {
             self.read_to_buf().unwrap();
+            self.buf_index = 0;
             return self.next_char();
         }
-
     }
-        fn read_to_buf(&mut self) -> std::io::Result<usize> {
-            self.reader.read(&mut self.buf)
-        }
+    fn read_to_buf(&mut self) -> std::io::Result<usize> {
+        self.reader.read(&mut self.buf)
+    }
 }
 
 mod tag {
@@ -132,13 +125,23 @@ mod tag {
 mod tests {
     use super::*;
     #[test]
-    fn test_num() {
-        let mut l = Lexer::new(Box::new("123".as_bytes()));
-
-        match l.read() {
-            Token::Num(desc, val) => assert_eq!(123, val),
-            _ => panic!("wrong token"),
+    fn test_num<'a>() {
+        macro_rules! assert_num {
+            ($num:expr) => {
+                let mut l = &mut Lexer::new(Box::new($num.as_bytes()));
+                match l.read() {
+                    Token::Num(_desc, val) => assert_eq!($num.parse::<i64>().unwrap(), val),
+                    _ => panic!("wrong token"),
+                }
+            };
         }
-        
+
+        assert_num!("123");
+        assert_num!("1234");
+        assert_num!("12345");
+        assert_num!("123456");
+
+        assert_num!("12345678912");
     }
+
 }
