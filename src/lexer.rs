@@ -176,7 +176,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reserved_words() {
+    fn test_true() {
         let l = &mut Lexer::new(Box::new("true".as_bytes()));
         match l.read() {
             Token::Word(desc, w) => {
@@ -186,5 +186,32 @@ mod tests {
             _ => panic!("wrong token"),
         }
     }
+
+    #[test]
+    fn test_false() {
+
+        let l = &mut Lexer::new(Box::new("false".as_bytes()));
+        match l.read() {
+            Token::Word(desc, w) => {
+                assert_eq!(desc.tag, tag::FALSE);
+                assert_eq!(w, "false".to_string());
+            }
+            _ => panic!("wrong token"),
+        }
+    }
+
+    #[test]
+    fn test_word() {
+        let l = &mut Lexer::new(Box::new("example".as_bytes()));
+        match l.read() {
+            Token::Word(desc, w) => {
+                assert_eq!(desc.tag, tag::ID);
+                assert_eq!(w, "example".to_string());
+            }
+            _ => panic!("wrong token"),
+        }
+
+    }
+
 
 }
