@@ -92,15 +92,19 @@ impl Lexer {
     }
 
     fn next_char(&mut self) -> char {
-        if self.buf_index < self.buf.len() {
-            self.peek = self.buf[self.buf_index] as char;
-            self.buf_index += 1;
-            println!("buf: {:?}", self.buf);
-            println!("peek: {:?}", self.peek);
-            return self.peek;
+            let buf = &mut self.buf;
+            let i = &mut self.buf_index;
+            let peek = &mut self.peek;
+        if *i < buf.len() {
+            *peek = buf[*i] as char;
+            // read and remove chunk from buffer
+            buf[*i] = 0;
+            *i += 1;
+
+            return *peek;
         } else {
+            *i = 0;
             self.read_to_buf().unwrap();
-            self.buf_index = 0;
             return self.next_char();
         }
     }
