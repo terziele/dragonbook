@@ -55,6 +55,9 @@ impl Lexer {
         reserve_word!("true", tag::TRUE);
         reserve_word!("false", tag::FALSE);
 
+        let  mut buf = [0;10];
+        let mut l = 
+
         Self {
             peek: ' ', 
             buf: [0;10],
@@ -62,13 +65,15 @@ impl Lexer {
             reader,
             words,
             line: 0u64,
-        }
+        };
+        l.read_to_buf();
+        l
     }
 
     pub fn read(&mut self) -> Token {
+        let mut peek = ' ';
         loop {
-            let peek = self.next_char();
-
+            peek = self.next_char();
             if peek == ' ' || peek == '\t' {
                 continue;
             } else if peek == '\n' {
@@ -76,34 +81,39 @@ impl Lexer {
             } else {
                 break;
             }
+        }
+        println!("current peek: {:?}", peek);
 
-            if peek.is_digit(0) {
-                let val = 0;
+        if peek.is_numeric() {
+            let mut val: i64 = 0;
+            while peek.is_numeric() {
+                let digit = peek.to_digit(10).unwrap() as i64;
+                val = 10 * val + digit;
+                println!("val: {:?}", val);
+                peek = self.next_char();
             }
-
+            return Token::num(val);
 
         }
-
-
-
-        Token::num(10)
+        panic!("at the disco");
     }
 
     fn next_char(&mut self) -> char {
         if self.buf_index <  self.buf.len() {
             self.peek = self.buf[self.buf_index] as char;
             self.buf_index += 1;
+            println!("buf: {:?}", self.buf);
+            println!("peek: {:?}", self.peek);
             return self.peek;
         } else {
-            // fill the buffer
-            self.buf_index = 0;
-            self.reader.read(&mut self.buf);
-            if self.buf.is_empty() {
-                return '\0';
-            }
+            self.read_to_buf().unwrap();
             return self.next_char();
         }
+
     }
+        fn read_to_buf(&mut self) -> std::io::Result<usize> {
+            self.reader.read(&mut self.buf)
+        }
 }
 
 mod tag {
@@ -116,4 +126,19 @@ mod tag {
     reserve_tag!(NUM, 256);
     reserve_tag!(TRUE, 257);
     reserve_tag!(FALSE, 258);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_num() {
+        let mut l = Lexer::new(Box::new("123".as_bytes()));
+
+        match l.read() {
+            Token::Num(desc, val) => assert_eq!(123, val),
+            _ => panic!("wrong token"),
+        }
+        
+    }
 }
