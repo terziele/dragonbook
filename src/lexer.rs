@@ -213,5 +213,17 @@ mod tests {
 
     }
 
+    #[test]
+    fn test_operator() {
+        let l = &mut Lexer::new(Box::new("+".as_bytes()));
+        match l.read() {
+            Token::Op(desc, w) => {
+                assert_eq!(desc.tag, '+' as i64);
+                assert_eq!(w, '+');
+            }
+            _ => panic!("wrong token"),
+        }
+
+    }
 
 }
