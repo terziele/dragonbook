@@ -1,6 +1,7 @@
 //! Lexer
 //!
 
+#[derive(Clone, Copy)]
 pub struct TokenDesc {
     tag: i64,
 }
@@ -11,9 +12,14 @@ macro_rules! desc {
     };
 }
 
+#[derive(Clone)]
 pub enum Token {
+    /// constant integer value
     Num(TokenDesc, i64),
+    /// Reserved word or identificator
     Word(TokenDesc, String),
+    /// Operator
+    Op(TokenDesc, char),
 }
 
 impl Token {
@@ -23,6 +29,14 @@ impl Token {
 
     fn word(tag: i64, val: String) -> Self {
         Token::Word(desc!(tag), val)
+    }
+
+    fn id(val: String) -> Self {
+        Token::Word(desc!(tag::ID), val)
+    }
+
+    fn op(op: char) -> Self {
+        Token::Op(desc!(op as i64), op)
     }
 }
 
@@ -60,12 +74,12 @@ impl Lexer {
             words,
             line: 0u64,
         };
-        l.read_to_buf();
+        l.read_to_buf().unwrap();
         l
     }
 
     pub fn read(&mut self) -> Token {
-        let mut peek = ' ';
+        let mut peek;
         loop {
             peek = self.next_char();
             if peek == ' ' || peek == '\t' {
@@ -83,18 +97,30 @@ impl Lexer {
             while peek.is_numeric() {
                 let digit = peek.to_digit(10).unwrap() as i64;
                 val = 10 * val + digit;
-                println!("val: {:?}", val);
                 peek = self.next_char();
             }
             return Token::num(val);
         }
-        panic!("at the disco");
+
+        if peek.is_alphabetic() {
+            let s = &mut String::new();
+            while peek.is_alphanumeric() {
+                s.push(peek);
+                peek = self.next_char();
+            }
+            let word = match self.words.get(s) {
+                Some(word) => word.clone(),
+                None => Token::id(s.to_string()),
+            };
+            return word;
+        }
+        Token::op(peek)
     }
 
     fn next_char(&mut self) -> char {
-            let buf = &mut self.buf;
-            let i = &mut self.buf_index;
-            let peek = &mut self.peek;
+        let buf = &mut self.buf;
+        let i = &mut self.buf_index;
+        let peek = &mut self.peek;
         if *i < buf.len() {
             *peek = buf[*i] as char;
             // read and remove chunk from buffer
@@ -123,6 +149,7 @@ mod tag {
     reserve_tag!(NUM, 256);
     reserve_tag!(TRUE, 257);
     reserve_tag!(FALSE, 258);
+    reserve_tag!(ID, 259);
 }
 
 #[cfg(test)]
@@ -132,7 +159,7 @@ mod tests {
     fn test_num<'a>() {
         macro_rules! assert_num {
             ($num:expr) => {
-                let mut l = &mut Lexer::new(Box::new($num.as_bytes()));
+                let l = &mut Lexer::new(Box::new($num.as_bytes()));
                 match l.read() {
                     Token::Num(_desc, val) => assert_eq!($num.parse::<i64>().unwrap(), val),
                     _ => panic!("wrong token"),
@@ -146,6 +173,18 @@ mod tests {
         assert_num!("123456");
 
         assert_num!("12345678912");
+    }
+
+    #[test]
+    fn test_reserved_words() {
+        let l = &mut Lexer::new(Box::new("true".as_bytes()));
+        match l.read() {
+            Token::Word(desc, w) => {
+                assert_eq!(desc.tag, tag::TRUE);
+                assert_eq!(w, "true".to_string());
+            }
+            _ => panic!("wrong token"),
+        }
     }
 
 }
