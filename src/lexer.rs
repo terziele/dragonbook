@@ -196,7 +196,7 @@ impl Lexer {
         // maybe its an multi-char operator like <=
         if peek == '=' || peek == '!' || peek == '>' || peek == '<' {
             let next = self.see_next();
-            if next == '=' || next == '!' || next == '>' || next == '<' {
+            if next == '=' || next == '>' || next == '<' {
                 let s = format!("{}{}", peek, next);
                 return Some(Token::op(s));
             }
