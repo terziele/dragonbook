@@ -141,12 +141,25 @@ impl Lexer {
     /// or a `Token::Float`
     fn parse_num(&mut self, peek: char) -> Option<Token> {
         let mut peek = peek;
+        if peek == '.' {
+            return match self.parse_decimal(peek) {
+                Some(d) => Some(Token::float(0.0 + d)),
+                None => None,
+            };
+        }
         if peek.is_numeric() {
             let mut val: i64 = 0;
             while peek.is_numeric() {
                 let digit = peek.to_digit(10).unwrap() as i64;
                 val = 10 * val + digit;
                 peek = self.next();
+
+                if peek == '.' {
+                    match self.parse_decimal(peek) {
+                        Some(d) => return Some(Token::float(val as f64 + d)),
+                        None => return Some(Token::float(val as f64)),
+                    }
+                }
             }
             return Some(Token::num(val));
         }
@@ -191,8 +204,24 @@ impl Lexer {
         Some(Token::op(peek.to_string()))
     }
 
-    fn parse_decimal(&mut self, current_peek: char) -> Option<Token> {
-        Some(Token::float(2.0))
+    /// Parses the the value after the floating point. So the result
+    /// is like '0.123'
+    fn parse_decimal(&mut self, current_peek: char) -> Option<f64> {
+        let mut peek = current_peek;
+        if peek == '.' && self.see_next().is_numeric() {
+            let mut dec_part = 0.0;
+            peek = self.next();
+            println!("val: {}", dec_part);
+            let mut o = 0.1;
+            while peek.is_numeric() {
+                let d = (peek.to_digit(10).unwrap() as u8) as f64;
+                dec_part = dec_part + (d * o);
+                o /= 10.0;
+                peek = self.next();
+            }
+            return Some(dec_part);
+        }
+        None
     }
 
     /// Reads next char in buffer and returns it.
@@ -356,5 +385,18 @@ mod tests {
         assert_fl!("2.");
         assert_fl!(".5");
         assert_fl!("3.14");
+    }
+
+    #[test]
+    fn test_parse_decimal() {
+        macro_rules! assert_dec {
+            ($e:expr) => {{
+                let l = &mut Lexer::new(Box::new($e.as_bytes()));
+                l.buf_index += 1;
+                assert_eq!($e.parse::<f64>().unwrap(), l.parse_decimal('.').unwrap());
+            }};
+        }
+
+        assert_dec!(".0123");
     }
 }
