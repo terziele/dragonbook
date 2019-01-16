@@ -1,7 +1,7 @@
 //! Lexer
 //!
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct TokenDesc {
     tag: i64,
 }
@@ -12,7 +12,7 @@ macro_rules! desc {
     };
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum Token {
     /// constant integer value
     Num(TokenDesc, i64),
@@ -20,6 +20,8 @@ pub enum Token {
     Word(TokenDesc, String),
     /// Operator
     Op(TokenDesc, char),
+    /// No token
+    None,
 }
 
 impl Token {
@@ -43,12 +45,11 @@ impl Token {
 use std::collections::HashMap;
 use std::io::Read;
 pub struct Lexer {
-    peek: char,
-    buf: [u8; 10],
     buf_index: usize,
     reader: Box<dyn Read>,
     words: HashMap<String, Token>,
     line: u64,
+    content: String,
 }
 
 impl Lexer {
@@ -65,14 +66,12 @@ impl Lexer {
         reserve_word!("true", tag::TRUE);
         reserve_word!("false", tag::FALSE);
 
-        let _buf = [0; 10];
         let mut l = Self {
-            peek: ' ',
-            buf: [0; 10],
             buf_index: 0,
             reader,
             words,
             line: 0u64,
+            content: String::new(),
         };
         l.read_to_buf().unwrap();
         l
@@ -81,7 +80,7 @@ impl Lexer {
     pub fn read(&mut self) -> Token {
         let mut peek;
         loop {
-            peek = self.next_char();
+            peek = self.next();
             if peek == ' ' || peek == '\t' {
                 continue;
             } else if peek == '\n' {
@@ -90,14 +89,40 @@ impl Lexer {
                 break;
             }
         }
+
         println!("current peek: {:?}", peek);
+
+        if peek == '\0' {
+            return Token::None;
+        }
+
+        // Skip comments if neccessary
+        if peek == '/' {
+            let mut next = self.next();
+            // if its singleline comment
+            //
+
+            if next == '/' {
+                while !(next == '\n' || next == '\0') {
+                    next = self.next();
+                }
+                return self.read();
+            } else if next == '*' {
+                loop {
+                    if self.next() == '*' && self.next() == '/' {
+                        break;
+                    }
+                }
+                return self.read();
+            }
+        }
 
         if peek.is_numeric() {
             let mut val: i64 = 0;
             while peek.is_numeric() {
                 let digit = peek.to_digit(10).unwrap() as i64;
                 val = 10 * val + digit;
-                peek = self.next_char();
+                peek = self.next();
             }
             return Token::num(val);
         }
@@ -106,7 +131,7 @@ impl Lexer {
             let s = &mut String::new();
             while peek.is_alphanumeric() {
                 s.push(peek);
-                peek = self.next_char();
+                peek = self.next();
             }
             let word = match self.words.get(s) {
                 Some(word) => word.clone(),
@@ -117,25 +142,31 @@ impl Lexer {
         Token::op(peek)
     }
 
-    fn next_char(&mut self) -> char {
-        let buf = &mut self.buf;
-        let i = &mut self.buf_index;
-        let peek = &mut self.peek;
-        if *i < buf.len() {
-            *peek = buf[*i] as char;
-            // read and remove chunk from buffer
-            buf[*i] = 0;
-            *i += 1;
-
-            return *peek;
-        } else {
-            *i = 0;
-            self.read_to_buf().unwrap();
-            return self.next_char();
+    /// Reads next char in buffer and returns it.
+    /// Incrementing `buf_index`.
+    fn next(&mut self) -> char {
+        let peek = self.char_at(self.buf_index);
+        if peek != '\0' {
+            self.buf_index += 1;
         }
+        peek
     }
+
+    /// Reads next char in buffer and returns it
+    /// but do not increments the `buf_index` counter
+    fn see_next(&self) -> char {
+        self.char_at(self.buf_index)
+    }
+
+    fn char_at(&self, i: usize) -> char {
+        if self.buf_index < self.content.len() {
+            return self.content.as_bytes()[i] as char;
+        }
+        return '\0';
+    }
+
     fn read_to_buf(&mut self) -> std::io::Result<usize> {
-        self.reader.read(&mut self.buf)
+        self.reader.read_to_string(&mut self.content)
     }
 }
 
@@ -171,47 +202,71 @@ mod tests {
         assert_num!("1234");
         assert_num!("12345");
         assert_num!("123456");
-
         assert_num!("12345678912");
+        assert_num!("56789032312");
+    }
+
+    macro_rules! assert_word {
+        ($w:expr, $tag:ident) => {{
+            let l = &mut Lexer::new(Box::new($w.as_bytes()));
+            assert_eq!(Token::word(tag::$tag, $w.to_string()), l.read());
+        }};
     }
 
     #[test]
     fn test_true() {
-        let l = &mut Lexer::new(Box::new("true".as_bytes()));
-        match l.read() {
-            Token::Word(desc, w) => {
-                assert_eq!(desc.tag, tag::TRUE);
-                assert_eq!(w, "true".to_string());
-            }
-            _ => panic!("wrong token"),
-        }
+        assert_word!("true", TRUE);
     }
 
     #[test]
     fn test_false() {
-
-        let l = &mut Lexer::new(Box::new("false".as_bytes()));
-        match l.read() {
-            Token::Word(desc, w) => {
-                assert_eq!(desc.tag, tag::FALSE);
-                assert_eq!(w, "false".to_string());
-            }
-            _ => panic!("wrong token"),
-        }
+        assert_word!("false", FALSE);
     }
 
     #[test]
     fn test_word() {
-        let l = &mut Lexer::new(Box::new("example".as_bytes()));
-        match l.read() {
-            Token::Word(desc, w) => {
-                assert_eq!(desc.tag, tag::ID);
-                assert_eq!(w, "example".to_string());
-            }
-            _ => panic!("wrong token"),
-        }
-
+        assert_word!("example", ID);
     }
 
+    #[test]
+    fn test_singleline_comment() {
+        let source = r#"// comment
+            token"#;
+        let l = &mut Lexer::new(Box::new(source.as_bytes()));
+        assert_eq!(Token::word(tag::ID, "token".to_string()), l.read());
+    }
 
+    #[test]
+    fn test_multilined_comment() {
+        let s = r#"/* comment
+                    * here
+                    * and here
+                    */
+                    token"#;
+        let l = &mut Lexer::new(Box::new(s.as_bytes()));
+        assert_eq!(Token::word(tag::ID, "token".to_string()), l.read());
+    }
+
+    macro_rules! assert_op {
+        ($op:expr) => {{
+            let l = &mut Lexer::new(Box::new($op.as_bytes()));
+            assert_eq!(Token::op($op.chars().next().unwrap()), l.read());
+        }};
+    }
+
+    #[test]
+    fn test_op() {
+        assert_op!("+");
+        assert_op!("-");
+        assert_op!("/");
+        assert_op!("/ some other stuff");
+    }
+
+    #[test]
+    fn test_char_at() {
+        let source = r#"// comment
+            token"#;
+        let l = &mut Lexer::new(Box::new(source.as_bytes()));
+        assert_eq!('\n', l.char_at(10));
+    }
 }
