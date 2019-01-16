@@ -99,20 +99,18 @@ impl Lexer {
         // Skip comments if neccessary
         if peek == '/' {
             let mut next = self.next();
-            // if its singleline comment
-            //
-
             if next == '/' {
-                while !(next == '\n' || next == '\0') {
+                // Singleline comments end with the line
+                // But we must not skip the '\n' char for
+                // its we be processed in further `self.read()` call
+                while !(self.see_next() == '\n' || next == '\0') {
                     next = self.next();
                 }
                 return self.read();
             } else if next == '*' {
-                loop {
-                    if self.next() == '*' && self.next() == '/' {
-                        break;
-                    }
-                }
+                // For multiline comments
+                // we must skip everything until we find '*/' construction
+                while !(self.next() == '*' && self.next() == '/') { /*no-op*/ }
                 return self.read();
             }
         }
