@@ -98,39 +98,30 @@ impl Lexer {
 
         println!("current peek: {:?}", peek);
 
-        if peek == '\0' {
-            return Token::None;
+        if self.skip_comments(peek) {
+            return self.read();
         }
 
-        // Skip comments if neccessary
-        if peek == '/' {
-            let mut next = self.next();
-            if next == '/' {
-                // Singleline comments end with the line
-                // But we must not skip the '\n' char for
-                // its we be processed in further `self.read()` call
-                while !(self.see_next() == '\n' || next == '\0') {
-                    next = self.next();
-                }
-                return self.read();
-            } else if next == '*' {
-                // For multiline comments
-                // we must skip everything until we find '*/' construction
-                while !(self.next() == '*' && self.next() == '/') { /*no-op*/ }
-                return self.read();
-            }
+        match self.parse_num(peek) {
+            Some(t) => return t,
+            None => {}
         }
 
-        if peek.is_numeric() {
-            let mut val: i64 = 0;
-            while peek.is_numeric() {
-                let digit = peek.to_digit(10).unwrap() as i64;
-                val = 10 * val + digit;
-                peek = self.next();
-            }
-            return Token::num(val);
+        match self.parse_word(peek) {
+            Some(t) => return t,
+            None => {}
         }
 
+        match self.parse_op(peek) {
+            Some(t) => return t,
+            None => {}
+        }
+
+        Token::None
+    }
+
+    fn parse_word(&mut self, peek: char) -> Option<Token> {
+        let mut peek = peek;
         if peek.is_alphabetic() {
             let s = &mut String::new();
             while peek.is_alphanumeric() {
@@ -141,17 +132,67 @@ impl Lexer {
                 Some(word) => word.clone(),
                 None => Token::id(s.to_string()),
             };
-            return word;
+            return Some(word);
         }
+        None
+    }
+
+    /// Parse numeric value. If successed returns a `Token::Num`
+    /// or a `Token::Float`
+    fn parse_num(&mut self, peek: char) -> Option<Token> {
+        let mut peek = peek;
+        if peek.is_numeric() {
+            let mut val: i64 = 0;
+            while peek.is_numeric() {
+                let digit = peek.to_digit(10).unwrap() as i64;
+                val = 10 * val + digit;
+                peek = self.next();
+            }
+            return Some(Token::num(val));
+        }
+
+        None
+    }
+
+    /// Remove comments from parsing.
+    /// Returns status as an indicator for new re-read of `peek`
+    fn skip_comments(&mut self, peek: char) -> bool {
+        // Skip comments if neccessary
+        if peek == '/' {
+            let mut next = self.next();
+            if next == '/' {
+                // Singleline comments end with the line
+                // But we must not skip the '\n' char for
+                // its we be processed in further `self.read()` call
+                while !(self.see_next() == '\n' || next == '\0') {
+                    next = self.next();
+                }
+                return true;
+            } else if next == '*' {
+                // For multiline comments
+                // we must skip everything until we find '*/' construction
+                while !(self.next() == '*' && self.next() == '/') { /*no-op*/ }
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    fn parse_op(&mut self, peek: char) -> Option<Token> {
         // maybe its an multi-char operator like <=
         if peek == '=' || peek == '!' || peek == '>' || peek == '<' {
             let next = self.see_next();
             if next == '=' || next == '!' || next == '>' || next == '<' {
                 let s = format!("{}{}", peek, next);
-                return Token::op(s);
+                return Some(Token::op(s));
             }
         }
-        Token::op(peek.to_string())
+        Some(Token::op(peek.to_string()))
+    }
+
+    fn parse_decimal(&mut self, current_peek: char) -> Option<Token> {
+        Some(Token::float(2.0))
     }
 
     /// Reads next char in buffer and returns it.
