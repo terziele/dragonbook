@@ -16,12 +16,10 @@ macro_rules! desc {
 pub enum Token {
     /// constant integer value
     Num(TokenDesc, i64),
-    /// Float value
-    Float(TokenDesc, f64),
     /// Reserved word or identificator
     Word(TokenDesc, String),
     /// Operator
-    Op(TokenDesc, String),
+    Op(TokenDesc, char),
     /// No token
     None,
 }
@@ -39,12 +37,8 @@ impl Token {
         Token::Word(desc!(tag::ID), val)
     }
 
-    fn op(op: String) -> Self {
-        Token::Op(desc!(tag::OP), op)
-    }
-
-    fn float(val: f64) -> Self {
-        Token::Float(desc!(tag::FLOAT), val)
+    fn op(op: char) -> Self {
+        Token::Op(desc!(op as i64), op)
     }
 }
 
@@ -143,15 +137,7 @@ impl Lexer {
             };
             return word;
         }
-        // maybe its an multi-char operator like <=
-        if peek == '=' || peek == '!' || peek == '>' || peek == '<' {
-            let next = self.see_next();
-            if next == '=' || next == '!' || next == '>' || next == '<' {
-                let s = format!("{}{}", peek, next);
-                return Token::op(s);
-            }
-        }
-        Token::op(peek.to_string())
+        Token::op(peek)
     }
 
     /// Reads next char in buffer and returns it.
@@ -193,8 +179,6 @@ mod tag {
     reserve_tag!(TRUE, 257);
     reserve_tag!(FALSE, 258);
     reserve_tag!(ID, 259);
-    reserve_tag!(OP, 260);
-    reserve_tag!(FLOAT, 261);
 }
 
 #[cfg(test)]
@@ -251,6 +235,18 @@ mod tests {
     }
 
     #[test]
+<<<<<<< HEAD
+    fn test_operator() {
+        let l = &mut Lexer::new(Box::new("+".as_bytes()));
+        match l.read() {
+            Token::Op(desc, w) => {
+                assert_eq!(desc.tag, '+' as i64);
+                assert_eq!(w, '+');
+            }
+            _ => panic!("wrong token"),
+        }
+
+=======
     fn test_multilined_comment() {
         let s = r#"/* comment
                     * here
@@ -264,7 +260,7 @@ mod tests {
     macro_rules! assert_op {
         ($op:expr) => {{
             let l = &mut Lexer::new(Box::new($op.as_bytes()));
-            assert_eq!(Token::op($op.chars().next().unwrap().to_string()), l.read());
+            assert_eq!(Token::op($op.chars().next().unwrap()), l.read());
         }};
     }
 
@@ -274,6 +270,7 @@ mod tests {
         assert_op!("-");
         assert_op!("/");
         assert_op!("/ some other stuff");
+>>>>>>> e34a1bea8b73cf672777b18a6f2f0dce54af92f4
     }
 
     #[test]
@@ -282,38 +279,5 @@ mod tests {
             token"#;
         let l = &mut Lexer::new(Box::new(source.as_bytes()));
         assert_eq!('\n', l.char_at(10));
-    }
-
-    #[test]
-    fn test_compare_operators() {
-        macro_rules! assert_op {
-            ($op:expr) => {
-                let l = &mut Lexer::new(Box::new($op.as_bytes()));
-                assert_eq!(Token::op($op.to_string()), l.read());
-            };
-        }
-
-        assert_op!("==");
-        assert_op!("!=");
-        assert_op!(">=");
-        assert_op!("=>");
-        assert_op!("<=");
-        assert_op!("=<");
-        assert_op!("<");
-        assert_op!(">");
-    }
-
-    #[test]
-    fn test_float_values() {
-        macro_rules! assert_fl {
-            ($val:expr) => {{
-                let l = &mut Lexer::new(Box::new($val.as_bytes()));
-                assert_eq!(Token::float($val.parse().unwrap()), l.read());
-            }};
-        }
-
-        assert_fl!("2.");
-        assert_fl!(".5");
-        assert_fl!("3.14");
     }
 }
